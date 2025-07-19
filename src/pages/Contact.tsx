@@ -4,24 +4,66 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    phone: '',
+    company: '',
     message: '',
+    product_type: '',
+    quantity: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would typically send the form data to your backend
-    toast({
-      title: "Message sent!",
-      description: "Thank you for contacting us. We'll get back to you soon.",
-    });
-    setFormData({ name: '', email: '', message: '' });
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await supabase
+        .from('quotes')
+        .insert([{
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone || null,
+          company: formData.company || null,
+          message: formData.message,
+          product_type: formData.product_type || null,
+          quantity: formData.quantity || null,
+        }]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Quote request submitted!",
+        description: "Thank you for your interest. We'll get back to you with a quote soon.",
+      });
+      
+      setFormData({ 
+        name: '', 
+        email: '', 
+        phone: '', 
+        company: '', 
+        message: '', 
+        product_type: '', 
+        quantity: '' 
+      });
+    } catch (error) {
+      console.error('Error submitting quote:', error);
+      toast({
+        title: "Error",
+        description: "There was an error submitting your request. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -31,12 +73,19 @@ const Contact = () => {
     });
   };
 
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="text-center mb-12 fade-in">
-        <h1 className="text-4xl font-bold text-gradient mb-4">Contact Us</h1>
+        <h1 className="text-4xl font-bold text-gradient mb-4">Get Your Quote</h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Get in touch with us for all your eco-friendly paper bag needs. We're here to help!
+          Get a personalized quote for your eco-friendly paper bag requirements. We'll respond within 24 hours!
         </p>
       </div>
 
@@ -44,41 +93,111 @@ const Contact = () => {
         {/* Contact Form */}
         <Card className="slide-up">
           <CardHeader>
-            <CardTitle className="text-2xl">Send us a message</CardTitle>
+            <CardTitle className="text-2xl">Request a Quote</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium mb-2">
-                  Name
-                </label>
-                <Input
-                  id="name"
-                  name="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                  placeholder="Your full name"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium mb-2">
+                    Name *
+                  </label>
+                  <Input
+                    id="name"
+                    name="name"
+                    type="text"
+                    value={formData.name}
+                    onChange={handleChange}
+                    required
+                    placeholder="Your full name"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium mb-2">
+                    Email *
+                  </label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                    placeholder="your@email.com"
+                  />
+                </div>
               </div>
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium mb-2">
-                  Email
-                </label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                  placeholder="your@email.com"
-                />
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium mb-2">
+                    Phone Number
+                  </label>
+                  <Input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="+91 12345 67890"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="company" className="block text-sm font-medium mb-2">
+                    Company Name
+                  </label>
+                  <Input
+                    id="company"
+                    name="company"
+                    type="text"
+                    value={formData.company}
+                    onChange={handleChange}
+                    placeholder="Your company name"
+                  />
+                </div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="product_type" className="block text-sm font-medium mb-2">
+                    Product Type
+                  </label>
+                  <Select onValueChange={(value) => handleSelectChange('product_type', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select product type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="grocery-bags">Grocery Bags</SelectItem>
+                      <SelectItem value="shopping-bags">Shopping Bags</SelectItem>
+                      <SelectItem value="gift-bags">Gift Bags</SelectItem>
+                      <SelectItem value="food-packaging">Food Packaging</SelectItem>
+                      <SelectItem value="custom-printed">Custom Printed Bags</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label htmlFor="quantity" className="block text-sm font-medium mb-2">
+                    Estimated Quantity
+                  </label>
+                  <Select onValueChange={(value) => handleSelectChange('quantity', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select quantity range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="100-500">100 - 500 pieces</SelectItem>
+                      <SelectItem value="500-1000">500 - 1,000 pieces</SelectItem>
+                      <SelectItem value="1000-5000">1,000 - 5,000 pieces</SelectItem>
+                      <SelectItem value="5000-10000">5,000 - 10,000 pieces</SelectItem>
+                      <SelectItem value="10000+">10,000+ pieces</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
               <div>
                 <label htmlFor="message" className="block text-sm font-medium mb-2">
-                  Message
+                  Additional Requirements *
                 </label>
                 <Textarea
                   id="message"
@@ -86,12 +205,17 @@ const Contact = () => {
                   value={formData.message}
                   onChange={handleChange}
                   required
-                  placeholder="Tell us about your requirements..."
+                  placeholder="Please describe your specific requirements, size preferences, design details, delivery timeline, etc."
                   rows={5}
                 />
               </div>
-              <Button type="submit" className="w-full btn-hero">
-                Send Message
+              
+              <Button 
+                type="submit" 
+                className="w-full btn-hero" 
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Submitting...' : 'Request Quote'}
               </Button>
             </form>
           </CardContent>
