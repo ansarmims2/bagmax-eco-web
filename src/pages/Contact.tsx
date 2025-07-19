@@ -109,8 +109,8 @@ const Contact = () => {
                 <div>
                   <p className="font-semibold">Address</p>
                   <p className="text-muted-foreground">
-                    123 Industrial Area, Sector 45<br />
-                    Gurugram, Haryana 122003<br />
+                    Poovenchina, Randathani (PO)<br />
+                    Malappuram, Kerala<br />
                     India
                   </p>
                 </div>
@@ -150,7 +150,7 @@ const Contact = () => {
             <CardContent>
               <div className="w-full h-64 bg-muted rounded-lg flex items-center justify-center">
                 <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3508.8199999999997!2d77.0266!3d28.4595!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390d19d582e38859%3A0x8b4d8c5c5c5c5c5c!2sGurugram%2C%20Haryana!5e0!3m2!1sen!2sin!4v1635000000000!5m2!1sen!2sin"
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3912.8199999999997!2d76.0766!3d11.0595!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3ba659489d2c1c75%3A0x2b1137c8c1f2e4d4!2sPoovenchina%2C%20Randathani%2C%20Kerala!5e0!3m2!1sen!2sin!4v1635000000000!5m2!1sen!2sin"
                   width="100%"
                   height="100%"
                   style={{ border: 0 }}
