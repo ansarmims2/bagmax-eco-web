@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Upload, Trash2, Edit2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 interface GalleryImage {
@@ -8,12 +10,19 @@ interface GalleryImage {
   url: string;
   alt: string;
   aspectRatio: string;
+  fileName: string;
+  filePath: string;
 }
 
 const Gallery = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchGalleryImages();
@@ -21,7 +30,6 @@ const Gallery = () => {
 
   const fetchGalleryImages = async () => {
     try {
-      // Fetch image metadata from database
       const { data: imageData, error: dbError } = await supabase
         .from('gallery_images')
         .select('*')
@@ -33,36 +41,157 @@ const Gallery = () => {
       }
 
       if (imageData && imageData.length > 0) {
-        // Get public URLs for each image
         const imagesWithUrls = await Promise.all(
           imageData.map(async (image) => {
             const { data } = supabase.storage
               .from('gallery')
               .getPublicUrl(image.file_path);
 
-            // Calculate aspect ratio class based on stored data or default
-            let aspectClass = 'aspect-square';
-            if (image.file_name) {
-              // You can enhance this logic based on your needs
-              aspectClass = 'aspect-[4/3]'; // Default aspect ratio
-            }
-
             return {
               id: image.id,
               url: data.publicUrl,
               alt: image.alt_text || image.file_name,
-              aspectRatio: aspectClass
+              aspectRatio: 'aspect-[4/3]',
+              fileName: image.file_name,
+              filePath: image.file_path
             };
           })
         );
 
         setGalleryImages(imagesWithUrls);
+      } else {
+        setGalleryImages([]);
       }
     } catch (error) {
       console.error('Error fetching gallery images:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = fileName;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('gallery')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Save metadata to database
+      const { error: dbError } = await supabase
+        .from('gallery_images')
+        .insert({
+          file_name: file.name,
+          file_path: filePath,
+          file_size: file.size,
+          mime_type: file.type,
+          alt_text: file.name.split('.')[0]
+        });
+
+      if (dbError) throw dbError;
+
+      toast({
+        title: "Success",
+        description: "Image uploaded successfully!",
+      });
+
+      fetchGalleryImages();
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload image. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteImage = async (image: GalleryImage) => {
+    try {
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from('gallery')
+        .remove([image.filePath]);
+
+      if (storageError) throw storageError;
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('gallery_images')
+        .delete()
+        .eq('id', image.id);
+
+      if (dbError) throw dbError;
+
+      toast({
+        title: "Success",
+        description: "Image deleted successfully!",
+      });
+
+      fetchGalleryImages();
+    } catch (error) {
+      console.error('Error deleting image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete image. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleRenameImage = async (image: GalleryImage) => {
+    if (!newName.trim()) return;
+
+    try {
+      const fileExt = image.fileName.split('.').pop();
+      const updatedFileName = `${newName}.${fileExt}`;
+
+      // Update database
+      const { error: dbError } = await supabase
+        .from('gallery_images')
+        .update({
+          file_name: updatedFileName,
+          alt_text: newName
+        })
+        .eq('id', image.id);
+
+      if (dbError) throw dbError;
+
+      toast({
+        title: "Success",
+        description: "Image renamed successfully!",
+      });
+
+      setEditingId(null);
+      setNewName('');
+      fetchGalleryImages();
+    } catch (error) {
+      console.error('Error renaming image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to rename image. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const startEditing = (image: GalleryImage) => {
+    setEditingId(image.id);
+    setNewName(image.fileName.split('.')[0]);
   };
 
   if (loading) {
@@ -84,6 +213,25 @@ const Gallery = () => {
           Discover our wide range of eco-friendly paper bags designed for various needs,
           from shopping to gift packaging.
         </p>
+        
+        {/* Upload Section */}
+        <div className="mb-8">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            {uploading ? 'Uploading...' : 'Upload Image'}
+          </Button>
+        </div>
       </div>
 
       {galleryImages.length === 0 ? (
@@ -97,20 +245,77 @@ const Gallery = () => {
             {galleryImages.map((image, index) => (
               <div
                 key={image.id}
-                className={`break-inside-avoid bg-card rounded-lg overflow-hidden shadow-card card-hover cursor-pointer slide-up mb-6 ${image.aspectRatio}`}
+                className={`break-inside-avoid bg-card rounded-lg overflow-hidden shadow-card hover:shadow-lg transition-shadow duration-300 slide-up mb-6 ${image.aspectRatio}`}
                 style={{ animationDelay: `${index * 0.05}s` }}
-                onClick={() => setSelectedImage(image.url)}
               >
                 <div className="relative w-full">
                   <img
                     src={image.url}
                     alt={image.alt}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover cursor-pointer"
+                    onClick={() => setSelectedImage(image.url)}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300">
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <h3 className="font-semibold text-white text-sm">{image.alt}</h3>
-                    </div>
+                  
+                  {/* Management Controls */}
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 hover:opacity-100 transition-opacity duration-300">
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="h-8 w-8 bg-white/90 hover:bg-white"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditing(image);
+                      }}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteImage(image);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Image Info and Rename */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                    {editingId === image.id ? (
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          value={newName}
+                          onChange={(e) => setNewName(e.target.value)}
+                          className="text-sm h-8 bg-white/90"
+                          placeholder="Enter new name"
+                        />
+                        <Button
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleRenameImage(image)}
+                        >
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => {
+                            setEditingId(null);
+                            setNewName('');
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <h3 className="font-semibold text-white text-sm truncate">
+                        {image.alt}
+                      </h3>
+                    )}
                   </div>
                 </div>
               </div>
