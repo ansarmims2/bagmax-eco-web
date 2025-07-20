@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { X, Upload, Trash2, Edit2, Save } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Trash2, Edit2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -18,10 +18,8 @@ const Gallery = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -69,56 +67,6 @@ const Gallery = () => {
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = fileName;
-
-      // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from('gallery')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // Save metadata to database
-      const { error: dbError } = await supabase
-        .from('gallery_images')
-        .insert({
-          file_name: file.name,
-          file_path: filePath,
-          file_size: file.size,
-          mime_type: file.type,
-          alt_text: file.name.split('.')[0]
-        });
-
-      if (dbError) throw dbError;
-
-      toast({
-        title: "Success",
-        description: "Image uploaded successfully!",
-      });
-
-      fetchGalleryImages();
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      toast({
-        title: "Error",
-        description: "Failed to upload image. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
 
   const handleDeleteImage = async (image: GalleryImage) => {
     try {
@@ -214,25 +162,6 @@ const Gallery = () => {
           from shopping to gift packaging.
         </p>
         
-        {/* Supabase Upload Button */}
-        <div className="mb-8">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            variant="default"
-            className="gap-2"
-          >
-            <Upload className="h-4 w-4" />
-            {uploading ? 'Uploading to Gallery...' : 'Upload to Gallery'}
-          </Button>
-        </div>
       </div>
 
       {galleryImages.length === 0 ? (
