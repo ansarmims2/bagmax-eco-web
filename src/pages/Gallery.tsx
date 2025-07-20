@@ -214,7 +214,7 @@ const Gallery = () => {
           from shopping to gift packaging.
         </p>
         
-        {/* Upload Section */}
+        {/* Supabase Upload Button */}
         <div className="mb-8">
           <input
             ref={fileInputRef}
@@ -226,10 +226,11 @@ const Gallery = () => {
           <Button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
+            variant="default"
             className="gap-2"
           >
             <Upload className="h-4 w-4" />
-            {uploading ? 'Uploading...' : 'Upload Image'}
+            {uploading ? 'Uploading to Gallery...' : 'Upload to Gallery'}
           </Button>
         </div>
       </div>
