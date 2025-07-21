@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Recycle, Globe, Award, Truck, Users, Leaf } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import heroImage from '@/assets/Website page n-04.jpg';
+import heroImage from '@/assets/hero-image.jpg';
 
 const Index = () => {
   const features = [
