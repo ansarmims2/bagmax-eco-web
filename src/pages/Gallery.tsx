@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import paperBagImage from '@/assets/Paper bag.png'; // ✅ Import local image
 
 interface GalleryImage {
   id: string;
@@ -67,17 +68,14 @@ const Gallery = () => {
     }
   };
 
-
   const handleDeleteImage = async (image: GalleryImage) => {
     try {
-      // Delete from storage
       const { error: storageError } = await supabase.storage
         .from('gallery')
         .remove([image.filePath]);
 
       if (storageError) throw storageError;
 
-      // Delete from database
       const { error: dbError } = await supabase
         .from('gallery_images')
         .delete()
@@ -108,7 +106,6 @@ const Gallery = () => {
       const fileExt = image.fileName.split('.').pop();
       const updatedFileName = `${newName}.${fileExt}`;
 
-      // Update database
       const { error: dbError } = await supabase
         .from('gallery_images')
         .update({
@@ -161,16 +158,21 @@ const Gallery = () => {
           Discover our wide range of eco-friendly paper bags designed for various needs,
           from shopping to gift packaging.
         </p>
-        
       </div>
 
       {galleryImages.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-lg text-muted-foreground">No images available in the gallery yet.</p>
+          <p className="text-lg text-muted-foreground mb-4">No images available in the gallery yet.</p>
+          <div className="flex justify-center">
+            <img
+              src={paperBagImage}
+              alt="Paper Bag"
+              className="w-[300px] h-auto rounded-lg shadow-md"
+            />
+          </div>
         </div>
       ) : (
         <>
-          {/* Masonry Grid Layout */}
           <div className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
             {galleryImages.map((image, index) => (
               <div
@@ -185,8 +187,7 @@ const Gallery = () => {
                     className="w-full h-full object-cover cursor-pointer"
                     onClick={() => setSelectedImage(image.url)}
                   />
-                  
-                  {/* Management Controls */}
+
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 hover:opacity-100 transition-opacity duration-300">
                     <Button
                       variant="secondary"
@@ -212,7 +213,6 @@ const Gallery = () => {
                     </Button>
                   </div>
 
-                  {/* Image Info and Rename */}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
                     {editingId === image.id ? (
                       <div className="flex gap-2 items-center">
@@ -254,7 +254,6 @@ const Gallery = () => {
         </>
       )}
 
-      {/* Modal for image preview */}
       {selectedImage && (
         <div
           className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
