@@ -94,10 +94,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      is_bagmax_admin: {
-        Args: { user_email: string }
-        Returns: boolean
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
