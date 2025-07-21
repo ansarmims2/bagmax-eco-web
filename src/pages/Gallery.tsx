@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Trash2, Edit2, Save, Upload } from 'lucide-react';
+import { X, Trash2, Edit2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -67,14 +67,17 @@ const Gallery = () => {
     }
   };
 
+
   const handleDeleteImage = async (image: GalleryImage) => {
     try {
+      // Delete from storage
       const { error: storageError } = await supabase.storage
         .from('gallery')
         .remove([image.filePath]);
 
       if (storageError) throw storageError;
 
+      // Delete from database
       const { error: dbError } = await supabase
         .from('gallery_images')
         .delete()
@@ -105,6 +108,7 @@ const Gallery = () => {
       const fileExt = image.fileName.split('.').pop();
       const updatedFileName = `${newName}.${fileExt}`;
 
+      // Update database
       const { error: dbError } = await supabase
         .from('gallery_images')
         .update({
@@ -138,48 +142,6 @@ const Gallery = () => {
     setNewName(image.fileName.split('.')[0]);
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const fileName = file.name;
-    const filePath = `uploads/${Date.now()}-${fileName}`;
-
-    try {
-      const { error: uploadError } = await supabase.storage
-        .from('gallery')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { error: insertError } = await supabase
-        .from('gallery_images')
-        .insert([
-          {
-            file_name: fileName,
-            file_path: filePath,
-            alt_text: fileName.split('.')[0],
-          }
-        ]);
-
-      if (insertError) throw insertError;
-
-      toast({
-        title: "Upload successful",
-        description: `${fileName} has been added to the gallery.`,
-      });
-
-      fetchGalleryImages();
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast({
-        title: "Upload failed",
-        description: "Could not upload the image.",
-        variant: "destructive",
-      });
-    }
-  };
-
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -195,18 +157,11 @@ const Gallery = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="text-center mb-12 fade-in">
         <h1 className="text-4xl font-bold text-gradient mb-4">Our Gallery</h1>
-        <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-6">
+        <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
           Discover our wide range of eco-friendly paper bags designed for various needs,
           from shopping to gift packaging.
         </p>
-        {/* Upload Input */}
-        <div className="flex items-center justify-center">
-          <label className="inline-flex items-center cursor-pointer bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/90">
-            <Upload className="mr-2 h-4 w-4" />
-            Upload Image
-            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-          </label>
-        </div>
+        
       </div>
 
       {galleryImages.length === 0 ? (
@@ -214,89 +169,92 @@ const Gallery = () => {
           <p className="text-lg text-muted-foreground">No images available in the gallery yet.</p>
         </div>
       ) : (
-        <div className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
-          {galleryImages.map((image, index) => (
-            <div
-              key={image.id}
-              className={`break-inside-avoid bg-card rounded-lg overflow-hidden shadow-card hover:shadow-lg transition-shadow duration-300 slide-up mb-6 ${image.aspectRatio}`}
-              style={{ animationDelay: `${index * 0.05}s` }}
-            >
-              <div className="relative w-full">
-                <img
-                  src={image.url}
-                  alt={image.alt}
-                  className="w-full h-full object-cover cursor-pointer"
-                  onClick={() => setSelectedImage(image.url)}
-                />
+        <>
+          {/* Masonry Grid Layout */}
+          <div className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
+            {galleryImages.map((image, index) => (
+              <div
+                key={image.id}
+                className={`break-inside-avoid bg-card rounded-lg overflow-hidden shadow-card hover:shadow-lg transition-shadow duration-300 slide-up mb-6 ${image.aspectRatio}`}
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
+                <div className="relative w-full">
+                  <img
+                    src={image.url}
+                    alt={image.alt}
+                    className="w-full h-full object-cover cursor-pointer"
+                    onClick={() => setSelectedImage(image.url)}
+                  />
+                  
+                  {/* Management Controls */}
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 hover:opacity-100 transition-opacity duration-300">
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="h-8 w-8 bg-white/90 hover:bg-white"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditing(image);
+                      }}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteImage(image);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
 
-                {/* Controls */}
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 hover:opacity-100 transition-opacity duration-300">
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    className="h-8 w-8 bg-white/90 hover:bg-white"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startEditing(image);
-                    }}
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteImage(image);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {/* Image Title or Rename */}
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                  {editingId === image.id ? (
-                    <div className="flex gap-2 items-center">
-                      <Input
-                        value={newName}
-                        onChange={(e) => setNewName(e.target.value)}
-                        className="text-sm h-8 bg-white/90"
-                        placeholder="Enter new name"
-                      />
-                      <Button
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleRenameImage(image)}
-                      >
-                        <Save className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          setEditingId(null);
-                          setNewName('');
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <h3 className="font-semibold text-white text-sm truncate">
-                      {image.alt}
-                    </h3>
-                  )}
+                  {/* Image Info and Rename */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                    {editingId === image.id ? (
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          value={newName}
+                          onChange={(e) => setNewName(e.target.value)}
+                          className="text-sm h-8 bg-white/90"
+                          placeholder="Enter new name"
+                        />
+                        <Button
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleRenameImage(image)}
+                        >
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => {
+                            setEditingId(null);
+                            setNewName('');
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <h3 className="font-semibold text-white text-sm truncate">
+                        {image.alt}
+                      </h3>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
 
-      {/* Preview Modal */}
+      {/* Modal for image preview */}
       {selectedImage && (
         <div
           className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
