@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { X, Trash2, Edit2, Save } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Trash2, Edit2, Save, Upload, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
 
 interface GalleryImage {
   id: string;
@@ -18,13 +19,40 @@ const Gallery = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
+  const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchGalleryImages();
-  }, []);
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (!session?.user) {
+          navigate('/');
+        }
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (!session?.user) {
+        navigate('/');
+        return;
+      }
+      fetchGalleryImages();
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   const fetchGalleryImages = async () => {
     try {
@@ -67,8 +95,80 @@ const Gallery = () => {
     }
   };
 
+  const isBagmaxAdmin = () => {
+    return user?.email === 'bagmax@bagmax.com';
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!isBagmaxAdmin()) {
+      toast({
+        title: "Permission Denied",
+        description: "Only bagmax can upload images.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = fileName;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('gallery')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Save metadata to database
+      const { error: dbError } = await supabase
+        .from('gallery_images')
+        .insert({
+          file_name: file.name,
+          file_path: filePath,
+          file_size: file.size,
+          mime_type: file.type,
+          alt_text: file.name.split('.')[0]
+        });
+
+      if (dbError) throw dbError;
+
+      toast({
+        title: "Success",
+        description: "Image uploaded successfully!",
+      });
+
+      fetchGalleryImages();
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload image. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   const handleDeleteImage = async (image: GalleryImage) => {
+    if (!isBagmaxAdmin()) {
+      toast({
+        title: "Permission Denied",
+        description: "Only bagmax can delete images.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       // Delete from storage
       const { error: storageError } = await supabase.storage
@@ -104,6 +204,15 @@ const Gallery = () => {
   const handleRenameImage = async (image: GalleryImage) => {
     if (!newName.trim()) return;
 
+    if (!isBagmaxAdmin()) {
+      toast({
+        title: "Permission Denied",
+        description: "Only bagmax can rename images.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       const fileExt = image.fileName.split('.').pop();
       const updatedFileName = `${newName}.${fileExt}`;
@@ -138,8 +247,21 @@ const Gallery = () => {
   };
 
   const startEditing = (image: GalleryImage) => {
+    if (!isBagmaxAdmin()) {
+      toast({
+        title: "Permission Denied",
+        description: "Only bagmax can edit images.",
+        variant: "destructive"
+      });
+      return;
+    }
     setEditingId(image.id);
     setNewName(image.fileName.split('.')[0]);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/');
   };
 
   if (loading) {
@@ -156,12 +278,49 @@ const Gallery = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="text-center mb-12 fade-in">
-        <h1 className="text-4xl font-bold text-gradient mb-4">Our Gallery</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-4xl font-bold text-gradient">Our Gallery</h1>
+          <div className="flex gap-2">
+            <span className="text-sm text-muted-foreground">
+              Welcome, {user?.email}
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleLogout}
+              className="gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Button>
+          </div>
+        </div>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
           Discover our wide range of eco-friendly paper bags designed for various needs,
           from shopping to gift packaging.
         </p>
         
+        {/* Upload Button - Only for bagmax */}
+        {isBagmaxAdmin() && (
+          <div className="mb-8">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              variant="default"
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              {uploading ? 'Uploading to Gallery...' : 'Upload to Gallery'}
+            </Button>
+          </div>
+        )}
       </div>
 
       {galleryImages.length === 0 ? (
@@ -186,35 +345,37 @@ const Gallery = () => {
                     onClick={() => setSelectedImage(image.url)}
                   />
                   
-                  {/* Management Controls */}
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 hover:opacity-100 transition-opacity duration-300">
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      className="h-8 w-8 bg-white/90 hover:bg-white"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditing(image);
-                      }}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteImage(image);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  {/* Management Controls - Only for bagmax */}
+                  {isBagmaxAdmin() && (
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 hover:opacity-100 transition-opacity duration-300">
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-8 w-8 bg-white/90 hover:bg-white"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEditing(image);
+                        }}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteImage(image);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
 
                   {/* Image Info and Rename */}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                    {editingId === image.id ? (
+                    {editingId === image.id && isBagmaxAdmin() ? (
                       <div className="flex gap-2 items-center">
                         <Input
                           value={newName}
