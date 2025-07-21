@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import paperBagImage from '@/assets/Paper bag.png';
+import paperBagImage from '@/assets/Paper bag 2.png';
 
 interface GalleryImage {
   id: string;
